@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import unicodedata
 import os
-import google.generativeai as genai  # <-- Gemini
+from google.ai import generativelanguage as genai
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.TextServiceClient()
 
 NUM_RECENT_FORM = 5
 
@@ -85,10 +85,14 @@ Dammi un pronostico chiaro:
 
 Rispondi in modo sintetico, chiaro e leggibile.
 """
+
     try:
-        modello = genai.TextGenerationModel.from_pretrained("text-bison-001")
-        risposta = modello.predict(prompt, temperature=0.5, max_output_tokens=300)
-        return risposta.text
+        response = client.generate_text(
+            model="gemini-2.5-flash",
+            temperature=0.5,
+            prompt=prompt
+        )
+        return response.text
     except Exception as e:
         return f"Errore generando pronostico IA: {e}"
 
@@ -276,6 +280,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
