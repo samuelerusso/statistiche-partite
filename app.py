@@ -1,105 +1,120 @@
-# app.py
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import unicodedata
 
-# ==============================
-# CONFIGURAZIONE
-# ==============================
-CSV_FILE = "partite.csv"
 NUM_RECENT_FORM = 5
-YEARS_BACK = 10
 
-# ==============================
-# CARICA CSV PARTITE
-# ==============================
+def normalize_team_name(name):
+    if pd.isna(name):
+        return ""
+    name = str(name).strip().lower()
+    name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
+    return name
+
 @st.cache_data
 def load_data():
-    df = pd.read_csv(CSV_FILE, low_memory=False)
-    df = df.loc[:, ~df.columns.duplicated()]  # Rimuove colonne duplicate
-    if 'MatchDate' in df.columns:
-        df = df.rename(columns={"MatchDate": "data"})
-    df['data'] = pd.to_datetime(df['data'], errors='coerce')
-    df = df[df['data'].dt.year >= df['data'].dt.year.max() - YEARS_BACK + 1]
-    df = df.rename(columns={
-        "HomeTeam": "squadra_casa",
-        "AwayTeam": "squadra_trasferta",
-        "FTHome": "gol_casa",
-        "FTAway": "gol_trasferta",
-        "HomeShots": "tiri_casa",
-        "AwayShots": "tiri_trasferta",
-        "HomeYellow": "gialli_casa",
-        "AwayYellow": "gialli_trasferta",
-        "HomeRed": "rossi_casa",
-        "AwayRed": "rossi_trasferta"
-    })
-    df['casa_norm'] = df['squadra_casa'].apply(normalize_team)
-    df['trasferta_norm'] = df['squadra_trasferta'].apply(normalize_team)
+    df = pd.read_csv("Partite.csv")
+    df.columns = df.columns.str.strip().str.lower()
+
+    df['casa_norm'] = df['casa'].apply(normalize_team_name)
+    df['trasferta_norm'] = df['trasferta'].apply(normalize_team_name)
+
     return df
 
-# ==============================
-# NORMALIZZAZIONE NOMI SQUADRE
-# ==============================
-def normalize_team(name):
-    name = str(name).lower()
-    for prefix in ["as ", "ssc ", "fc "]:
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-    return name.strip()
-
-# ==============================
-# FUNZIONE STATISTICHE E PRONOSTICI
-# ==============================
 def calcola_statistiche(df_all, squadra1, squadra2):
-    squadra1_norm = normalize_team(squadra1)
-    squadra2_norm = normalize_team(squadra2)
+    squadra1_norm = normalize_team_name(squadra1)
+    squadra2_norm = normalize_team_name(squadra2)
 
     df1 = df_all[
-        ((df_all['casa_norm'] == squadra1_norm) & (df_all['trasferta_norm'] == squadra2_norm)) |
-        ((df_all['casa_norm'] == squadra2_norm) & (df_all['trasferta_norm'] == squadra1_norm))
+        ((df_all['casa_norm']==squadra1_norm) & (df_all['trasferta_norm']==squadra2_norm)) |
+        ((df_all['casa_norm']==squadra2_norm) & (df_all['trasferta_norm']==squadra1_norm))
     ]
 
     if df1.empty:
         return None
 
     tot_partite = len(df1)
-    vittorie1 = len(df1[((df1['casa_norm']==squadra1_norm) & (df1['gol_casa']>df1['gol_trasferta'])) |
-                         ((df1['trasferta_norm']==squadra1_norm) & (df1['gol_trasferta']>df1['gol_casa']))])
-    vittorie2 = len(df1[((df1['casa_norm']==squadra2_norm) & (df1['gol_casa']>df1['gol_trasferta'])) |
-                         ((df1['trasferta_norm']==squadra2_norm) & (df1['gol_trasferta']>df1['gol_casa']))])
-    pareggi = tot_partite - vittorie1 - vittorie2
 
-    # Media gol fatti/subiti
+    vittorie1 = ((df1['gol_casa'] > df1['gol_trasferta']) & (df1['casa_norm']==squadra1_norm)).sum() + \
+                ((df1['gol_trasferta'] > df1['gol_casa']) & (df1['trasferta_norm']==squadra1_norm)).sum()
+
+    vittorie2 = ((df1['gol_casa'] > df1['gol_trasferta']) & (df1['casa_norm']==squadra2_norm)).sum() + \
+                ((df1['gol_trasferta'] > df1['gol_casa']) & (df1['trasferta_norm']==squadra2_norm)).sum()
+
+    pareggi = (df1['gol_casa'] == df1['gol_trasferta']).sum()
+
     gol1_fatti = df1.apply(lambda r: r['gol_casa'] if r['casa_norm']==squadra1_norm else r['gol_trasferta'], axis=1).mean()
-    gol1_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra1_norm else r['gol_casa'], axis=1).mean()
     gol2_fatti = df1.apply(lambda r: r['gol_casa'] if r['casa_norm']==squadra2_norm else r['gol_trasferta'], axis=1).mean()
+
+    gol1_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra1_norm else r['gol_casa'], axis=1).mean()
     gol2_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra2_norm else r['gol_casa'], axis=1).mean()
 
     # Forma recente
-    df_recent1 = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)].sort_values('data', ascending=False).head(NUM_RECENT_FORM)
-    df_recent2 = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)].sort_values('data', ascending=False).head(NUM_RECENT_FORM)
-    forma1 = df_recent1.apply(lambda r: (3 if (r['gol_casa']>r['gol_trasferta'] and r['casa_norm']==squadra1_norm) or (r['gol_trasferta']>r['gol_casa'] and r['trasferta_norm']==squadra1_norm) else 1 if r['gol_casa']==r['gol_trasferta'] else 0), axis=1).sum()
-    forma2 = df_recent2.apply(lambda r: (3 if (r['gol_casa']>r['gol_trasferta'] and r['casa_norm']==squadra2_norm) or (r['gol_trasferta']>r['gol_casa'] and r['trasferta_norm']==squadra2_norm) else 1 if r['gol_casa']==r['gol_trasferta'] else 0), axis=1).sum()
+    df_s1 = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)].tail(NUM_RECENT_FORM)
+    df_s2 = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)].tail(NUM_RECENT_FORM)
 
-    # Pronostici
-    pron_risultato = {'1': vittorie1/tot_partite*100, 'X': pareggi/tot_partite*100, '2': vittorie2/tot_partite*100}
-    pron_doppia = {'1X': pron_risultato['1']+pron_risultato['X'], 'X2': pron_risultato['X']+pron_risultato['2'], '12': pron_risultato['1']+pron_risultato['2']}
-    over_05 = len(df1[df1['gol_casa']+df1['gol_trasferta']>0])/tot_partite*100
-    over_15 = len(df1[df1['gol_casa']+df1['gol_trasferta']>1])/tot_partite*100
-    over_25 = len(df1[df1['gol_casa']+df1['gol_trasferta']>2])/tot_partite*100
-    goal1 = len(df1[df1.apply(lambda r: (r['gol_casa']>0 if r['casa_norm']==squadra1_norm else r['gol_trasferta']>0), axis=1)])/tot_partite*100
-    goal2 = len(df1[df1.apply(lambda r: (r['gol_casa']>0 if r['casa_norm']==squadra2_norm else r['gol_trasferta']>0), axis=1)])/tot_partite*100
-    goal_goal = len(df1[df1.apply(lambda r: (r['gol_casa']>0 and r['gol_trasferta']>0), axis=1)])/tot_partite*100
+    forma1 = ((df_s1['gol_casa'] > df_s1['gol_trasferta']) & (df_s1['casa_norm']==squadra1_norm)).sum() + \
+             ((df_s1['gol_trasferta'] > df_s1['gol_casa']) & (df_s1['trasferta_norm']==squadra1_norm)).sum()
 
-    # Pronostico finale consigliato
-    risultato_finale = max(pron_risultato, key=pron_risultato.get)
-    doppia_finale = max(pron_doppia, key=pron_doppia.get)
-    if over_25 > 60:
-        over_finale = "Over2.5"
-    elif over_15 > 60:
-        over_finale = "Over1.5"
+    forma2 = ((df_s2['gol_casa'] > df_s2['gol_trasferta']) & (df_s2['casa_norm']==squadra2_norm)).sum() + \
+             ((df_s2['gol_trasferta'] > df_s2['gol_casa']) & (df_s2['trasferta_norm']==squadra2_norm)).sum()
+
+    # Percentuali
+    perc1 = vittorie1 / tot_partite * 100
+    percX = pareggi / tot_partite * 100
+    perc2 = vittorie2 / tot_partite * 100
+
+    risultato_finale = max([("1", perc1), ("X", percX), ("2", perc2)], key=lambda x: x[1])[0]
+
+    if perc1 + percX > perc2:
+        doppia_finale = "1X"
+    elif perc2 + percX > perc1:
+        doppia_finale = "X2"
     else:
-        over_finale = "Over0.5"
-    goal_finale = "GOAL" if goal_goal>60 else "NOGOAL"
+        doppia_finale = "12"
+
+    media_gol_tot = (gol1_fatti + gol2_fatti)
+    if media_gol_tot > 2.5:
+        over_finale = "OVER 2.5"
+    elif media_gol_tot > 1.5:
+        over_finale = "OVER 1.5"
+    else:
+        over_finale = "OVER 0.5"
+
+    if gol1_fatti > 0.8 and gol2_fatti > 0.8:
+        goal_finale = "GOAL"
+    else:
+        goal_finale = "NOGOAL"
+
+    # ==============================
+    # STATISTICHE COMPLETE AUTOMATICHE
+    # ==============================
+
+    numeric_cols = df_all.select_dtypes(include=['number']).columns.tolist()
+
+    stats_complete = []
+    df_s1_all = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)]
+    df_s2_all = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)]
+
+    for col in numeric_cols:
+        try:
+            media_scontri = df1[col].mean()
+            media_s1 = df_s1_all[col].mean()
+            media_s2 = df_s2_all[col].mean()
+
+            superiore = squadra1 if media_s1 > media_s2 else squadra2
+
+            stats_complete.append({
+                "Statistica": col,
+                squadra1: round(media_s1,2),
+                squadra2: round(media_s2,2),
+                "Scontri Diretti": round(media_scontri,2),
+                "Superiore": superiore
+            })
+        except:
+            continue
+
+    stats_df = pd.DataFrame(stats_complete)
 
     return {
         "tot_partite": tot_partite,
@@ -112,54 +127,46 @@ def calcola_statistiche(df_all, squadra1, squadra2):
         "gol2_subiti": gol2_subiti,
         "forma1": forma1,
         "forma2": forma2,
-        "pron_risultato": pron_risultato,
-        "pron_doppia": pron_doppia,
-        "over_05": over_05,
-        "over_15": over_15,
-        "over_25": over_25,
-        "goal1": goal1,
-        "goal2": goal2,
-        "goal_goal": goal_goal,
+        "perc1": perc1,
+        "percX": percX,
+        "perc2": perc2,
         "risultato_finale": risultato_finale,
         "doppia_finale": doppia_finale,
         "over_finale": over_finale,
-        "goal_finale": goal_finale
+        "goal_finale": goal_finale,
+        "stats_complete": stats_df
     }
 
 # ==============================
-# STREAMLIT INTERFACE
+# STREAMLIT UI
 # ==============================
-st.title("📊 Pronostici Partite Calcio")
+
+st.title("⚽ Analizzatore Partite PRO")
 
 df_all = load_data()
-squadre = sorted(list(set(df_all['squadra_casa'].unique()) | set(df_all['squadra_trasferta'].unique())))
 
-squadra_casa = st.selectbox("Squadra Casa:", squadre)
-squadra_trasferta = st.selectbox("Squadra Trasferta:", squadre)
+squadre = sorted(set(df_all['casa'].unique()).union(set(df_all['trasferta'].unique())))
 
-if st.button("Calcola pronostico"):
+squadra_casa = st.selectbox("Squadra Casa", squadre)
+squadra_trasferta = st.selectbox("Squadra Trasferta", squadre)
+
+if st.button("Analizza"):
     risultato = calcola_statistiche(df_all, squadra_casa, squadra_trasferta)
+
     if risultato is None:
         st.warning("❌ Nessuna partita trovata tra queste squadre")
     else:
-        st.subheader(f"📊 Statistiche e pronostico {squadra_casa} vs {squadra_trasferta}")
+        st.subheader("📊 Statistiche Base")
         st.write(f"Totale partite: {risultato['tot_partite']}")
-        st.write(f"{squadra_casa} vittorie: {risultato['vittorie1']}")
-        st.write(f"{squadra_trasferta} vittorie: {risultato['vittorie2']}")
+        st.write(f"Vittorie {squadra_casa}: {risultato['vittorie1']}")
+        st.write(f"Vittorie {squadra_trasferta}: {risultato['vittorie2']}")
         st.write(f"Pareggi: {risultato['pareggi']}")
-        st.write(f"{squadra_casa} media gol fatti/subiti: {risultato['gol1_fatti']:.1f}/{risultato['gol1_subiti']:.1f}")
-        st.write(f"{squadra_trasferta} media gol fatti/subiti: {risultato['gol2_fatti']:.1f}/{risultato['gol2_subiti']:.1f}")
-        st.write(f"Forma ultime {NUM_RECENT_FORM} partite: {squadra_casa}={risultato['forma1']} pts | {squadra_trasferta}={risultato['forma2']} pts")
 
-        st.subheader("🎯 Pronostici probabilistici")
-        st.write(f"Risultato secco: 1={risultato['pron_risultato']['1']:.1f}% | X={risultato['pron_risultato']['X']:.1f}% | 2={risultato['pron_risultato']['2']:.1f}%")
-        st.write(f"Doppia chance: 1X={risultato['pron_doppia']['1X']:.1f}% | X2={risultato['pron_doppia']['X2']:.1f}% | 12={risultato['pron_doppia']['12']:.1f}%")
-        st.write(f"Over/Under gol: Over0.5={risultato['over_05']:.1f}% | Over1.5={risultato['over_15']:.1f}% | Over2.5={risultato['over_25']:.1f}%")
-        st.write(f"Goal/NoGoal: {squadra_casa} GOAL={risultato['goal1']:.1f}% | {squadra_trasferta} GOAL={risultato['goal2']:.1f}% | Entrambe segnano={risultato['goal_goal']:.1f}%")
-
-        st.subheader("🏆 Pronostico finale consigliato")
-        st.write(f"Risultato secco: {risultato['risultato_finale']}")
+        st.subheader("🎯 Pronostico Finale")
+        st.write(f"Risultato consigliato: {risultato['risultato_finale']}")
         st.write(f"Doppia chance: {risultato['doppia_finale']}")
-        st.write(f"Over/Under: {risultato['over_finale']}")
+        st.write(f"Over consigliato: {risultato['over_finale']}")
         st.write(f"Goal/NoGoal: {risultato['goal_finale']}")
 
+        st.subheader("📈 TUTTE le statistiche del CSV")
+        st.dataframe(risultato["stats_complete"], use_container_width=True)
