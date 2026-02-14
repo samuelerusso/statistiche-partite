@@ -4,6 +4,9 @@ import unicodedata
 
 NUM_RECENT_FORM = 5
 
+# ==============================
+# NORMALIZZAZIONE NOMI SQUADRE
+# ==============================
 def normalize_team_name(name):
     if pd.isna(name):
         return ""
@@ -11,6 +14,9 @@ def normalize_team_name(name):
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
     return name
 
+# ==============================
+# CARICA CSV
+# ==============================
 @st.cache_data
 def load_data():
     try:
@@ -19,34 +25,40 @@ def load_data():
         st.error("❌ File Partite.csv non trovato nel repository GitHub")
         st.stop()
 
+    # pulizia colonne
     df.columns = df.columns.str.strip().str.lower()
 
-    # 🔥 Mappatura ESATTA per il tuo dataset
+    # rinomina colonne gol
     rename_map = {
         "fthome": "gol_casa",
-        "ftaway": "gol_trasferta"
+        "ftaway": "gol_trasferta",
+        "hometeam": "casa",
+        "awayteam": "trasferta"
     }
-
     df = df.rename(columns=rename_map)
 
-    # Controllo colonne obbligatorie
+    # controlla colonne obbligatorie
     required_cols = ["casa", "trasferta", "gol_casa", "gol_trasferta"]
-
     for col in required_cols:
         if col not in df.columns:
             st.error(f"❌ Colonna obbligatoria mancante nel CSV: {col}")
             st.write("Colonne trovate nel file:", df.columns.tolist())
             st.stop()
 
+    # normalizza nomi squadre
     df['casa_norm'] = df['casa'].apply(normalize_team_name)
     df['trasferta_norm'] = df['trasferta'].apply(normalize_team_name)
 
     return df
 
+# ==============================
+# CALCOLO STATISTICHE E PRONOSTICI
+# ==============================
 def calcola_statistiche(df_all, squadra1, squadra2):
     squadra1_norm = normalize_team_name(squadra1)
     squadra2_norm = normalize_team_name(squadra2)
 
+    # scontri diretti
     df1 = df_all[
         ((df_all['casa_norm']==squadra1_norm) & (df_all['trasferta_norm']==squadra2_norm)) |
         ((df_all['casa_norm']==squadra2_norm) & (df_all['trasferta_norm']==squadra1_norm))
@@ -67,21 +79,19 @@ def calcola_statistiche(df_all, squadra1, squadra2):
 
     gol1_fatti = df1.apply(lambda r: r['gol_casa'] if r['casa_norm']==squadra1_norm else r['gol_trasferta'], axis=1).mean()
     gol2_fatti = df1.apply(lambda r: r['gol_casa'] if r['casa_norm']==squadra2_norm else r['gol_trasferta'], axis=1).mean()
-
     gol1_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra1_norm else r['gol_casa'], axis=1).mean()
     gol2_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra2_norm else r['gol_casa'], axis=1).mean()
 
-    # Forma recente
+    # forma recente
     df_s1 = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)].tail(NUM_RECENT_FORM)
     df_s2 = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)].tail(NUM_RECENT_FORM)
 
     forma1 = ((df_s1['gol_casa'] > df_s1['gol_trasferta']) & (df_s1['casa_norm']==squadra1_norm)).sum() + \
              ((df_s1['gol_trasferta'] > df_s1['gol_casa']) & (df_s1['trasferta_norm']==squadra1_norm)).sum()
-
     forma2 = ((df_s2['gol_casa'] > df_s2['gol_trasferta']) & (df_s2['casa_norm']==squadra2_norm)).sum() + \
              ((df_s2['gol_trasferta'] > df_s2['gol_casa']) & (df_s2['trasferta_norm']==squadra2_norm)).sum()
 
-    # Percentuali
+    # percentuali
     perc1 = vittorie1 / tot_partite * 100
     percX = pareggi / tot_partite * 100
     perc2 = vittorie2 / tot_partite * 100
@@ -95,7 +105,7 @@ def calcola_statistiche(df_all, squadra1, squadra2):
     else:
         doppia_finale = "12"
 
-    media_gol_tot = (gol1_fatti + gol2_fatti)
+    media_gol_tot = gol1_fatti + gol2_fatti
     if media_gol_tot > 2.5:
         over_finale = "OVER 2.5"
     elif media_gol_tot > 1.5:
@@ -109,11 +119,9 @@ def calcola_statistiche(df_all, squadra1, squadra2):
         goal_finale = "NOGOAL"
 
     # ==============================
-    # STATISTICHE COMPLETE AUTOMATICHE
+    # STATISTICHE COMPLETE (tutte le colonne numeriche)
     # ==============================
-
     numeric_cols = df_all.select_dtypes(include=['number']).columns.tolist()
-
     stats_complete = []
     df_s1_all = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)]
     df_s2_all = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)]
@@ -123,7 +131,6 @@ def calcola_statistiche(df_all, squadra1, squadra2):
             media_scontri = df1[col].mean()
             media_s1 = df_s1_all[col].mean()
             media_s2 = df_s2_all[col].mean()
-
             superiore = squadra1 if media_s1 > media_s2 else squadra2
 
             stats_complete.append({
@@ -162,11 +169,9 @@ def calcola_statistiche(df_all, squadra1, squadra2):
 # ==============================
 # STREAMLIT UI
 # ==============================
-
 st.title("⚽ Analizzatore Partite PRO")
 
 df_all = load_data()
-
 squadre = sorted(set(df_all['casa'].unique()).union(set(df_all['trasferta'].unique())))
 
 squadra_casa = st.selectbox("Squadra Casa", squadre)
@@ -192,9 +197,3 @@ if st.button("Analizza"):
 
         st.subheader("📈 TUTTE le statistiche del CSV")
         st.dataframe(risultato["stats_complete"], use_container_width=True)
-
-
-
-
-
-
