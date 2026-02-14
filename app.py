@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import unicodedata
+import openai  # <-- aggiunto per usare l'IA
 
 NUM_RECENT_FORM = 5
 
@@ -25,10 +26,8 @@ def load_data():
         st.error("❌ File Partite.csv non trovato nel repository GitHub")
         st.stop()
 
-    # pulizia colonne
     df.columns = df.columns.str.strip().str.lower()
 
-    # rinomina colonne gol
     rename_map = {
         "fthome": "gol_casa",
         "ftaway": "gol_trasferta",
@@ -37,7 +36,6 @@ def load_data():
     }
     df = df.rename(columns=rename_map)
 
-    # controlla colonne obbligatorie
     required_cols = ["casa", "trasferta", "gol_casa", "gol_trasferta"]
     for col in required_cols:
         if col not in df.columns:
@@ -45,11 +43,55 @@ def load_data():
             st.write("Colonne trovate nel file:", df.columns.tolist())
             st.stop()
 
-    # normalizza nomi squadre
     df['casa_norm'] = df['casa'].apply(normalize_team_name)
     df['trasferta_norm'] = df['trasferta'].apply(normalize_team_name)
 
     return df
+
+# ==============================
+# FUNZIONE PER GENERARE TESTO LEGGIBILE DELLE STATISTICHE
+# ==============================
+def stats_to_text(risultato, squadra1, squadra2):
+    testo = f"Totale partite: {risultato['tot_partite']}\n"
+    testo += f"Vittorie {squadra1}: {risultato['vittorie1']}\n"
+    testo += f"Vittorie {squadra2}: {risultato['vittorie2']}\n"
+    testo += f"Pareggi: {risultato['pareggi']}\n"
+    testo += f"Gol medi fatti/subiti {squadra1}: {risultato['gol1_fatti']:.2f}/{risultato['gol1_subiti']:.2f}\n"
+    testo += f"Gol medi fatti/subiti {squadra2}: {risultato['gol2_fatti']:.2f}/{risultato['gol2_subiti']:.2f}\n"
+    testo += f"Forma ultime {NUM_RECENT_FORM} partite: {squadra1}={risultato['forma1']} pts | {squadra2}={risultato['forma2']} pts\n"
+    testo += f"Percentuale vittorie {squadra1}: {risultato['perc1']:.1f}% | Pareggi: {risultato['percX']:.1f}% | Vittorie {squadra2}: {risultato['perc2']:.1f}%\n\n"
+    testo += "Statistiche dettagliate:\n"
+    for stat in risultato["stats_complete"]:
+        testo += f"{stat['Statistica']} → {squadra1}: {stat[squadra1]}, {squadra2}: {stat[squadra2]}, Scontri diretti: {stat['Scontri Diretti']}, Superiore: {stat['Superiore']}\n"
+    return testo
+
+# ==============================
+# FUNZIONE PER GENERARE PRONOSTICO IA
+# ==============================
+def genera_pronostico_ia(testo_statistiche, squadra1, squadra2):
+    prompt = f"""
+Leggi attentamente queste statistiche tra le squadre {squadra1} e {squadra2}:
+
+{testo_statistiche}
+
+Dammi un pronostico chiaro:
+1. Risultato finale (1/X/2)
+2. Doppia chance
+3. Over/Under 2.5
+4. Goal/NoGoal
+
+Rispondi in modo sintetico, chiaro e leggibile.
+"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5
+        )
+        testo_risposta = response.choices[0].message.content.strip()
+        return testo_risposta
+    except Exception as e:
+        return f"Errore generando pronostico IA: {e}"
 
 # ==============================
 # CALCOLO STATISTICHE E PRONOSTICI
@@ -58,7 +100,6 @@ def calcola_statistiche(df_all, squadra1, squadra2):
     squadra1_norm = normalize_team_name(squadra1)
     squadra2_norm = normalize_team_name(squadra2)
 
-    # scontri diretti
     df1 = df_all[
         ((df_all['casa_norm']==squadra1_norm) & (df_all['trasferta_norm']==squadra2_norm)) |
         ((df_all['casa_norm']==squadra2_norm) & (df_all['trasferta_norm']==squadra1_norm))
@@ -82,7 +123,6 @@ def calcola_statistiche(df_all, squadra1, squadra2):
     gol1_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra1_norm else r['gol_casa'], axis=1).mean()
     gol2_subiti = df1.apply(lambda r: r['gol_trasferta'] if r['casa_norm']==squadra2_norm else r['gol_casa'], axis=1).mean()
 
-    # forma recente
     df_s1 = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)].tail(NUM_RECENT_FORM)
     df_s2 = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)].tail(NUM_RECENT_FORM)
 
@@ -91,7 +131,6 @@ def calcola_statistiche(df_all, squadra1, squadra2):
     forma2 = ((df_s2['gol_casa'] > df_s2['gol_trasferta']) & (df_s2['casa_norm']==squadra2_norm)).sum() + \
              ((df_s2['gol_trasferta'] > df_s2['gol_casa']) & (df_s2['trasferta_norm']==squadra2_norm)).sum()
 
-    # percentuali
     perc1 = vittorie1 / tot_partite * 100
     percX = pareggi / tot_partite * 100
     perc2 = vittorie2 / tot_partite * 100
@@ -113,20 +152,13 @@ def calcola_statistiche(df_all, squadra1, squadra2):
     else:
         over_finale = "OVER 0.5"
 
-    if gol1_fatti > 0.8 and gol2_fatti > 0.8:
-        goal_finale = "GOAL"
-    else:
-        goal_finale = "NOGOAL"
+    goal_finale = "GOAL" if gol1_fatti > 0.8 and gol2_fatti > 0.8 else "NOGOAL"
 
-    # ==============================
-    # STATISTICHE COMPLETE TRADOTTE
-    # ==============================
     numeric_cols = df_all.select_dtypes(include=['number']).columns.tolist()
     stats_complete = []
     df_s1_all = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)]
     df_s2_all = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)]
 
-    # Dizionario di traduzione colonne
     stat_translate = {
         "gol_casa": "Gol medi Casa",
         "gol_trasferta": "Gol medi Trasferta",
@@ -229,3 +261,11 @@ if st.button("Analizza"):
         st.subheader("📈 Statistiche Dettagliate")
         for stat in risultato["stats_complete"]:
             st.write(f"**{stat['Statistica']}** → {squadra_casa}: {stat[squadra_casa]}, {squadra_trasferta}: {stat[squadra_trasferta]}, Scontri diretti: {stat['Scontri Diretti']}, Superiore: {stat['Superiore']}")
+
+        # ==============================
+        # PRONOSTICO AUTOMATICO CON IA
+        # ==============================
+        st.subheader("🤖 Pronostico IA")
+        testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
+        pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
+        st.write(pronostico_ia)
