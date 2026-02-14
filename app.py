@@ -19,27 +19,17 @@ def load_data():
         st.error("❌ File Partite.csv non trovato nel repository GitHub")
         st.stop()
 
-    # Normalizza nomi colonne
     df.columns = df.columns.str.strip().str.lower()
 
-    # 🔥 Mappatura precisa per dataset tipo betting
-    rename_map = {}
-
-    if "hometeam" in df.columns:
-        rename_map["hometeam"] = "casa"
-
-    if "awayteam" in df.columns:
-        rename_map["awayteam"] = "trasferta"
-
-    if "fthg" in df.columns:
-        rename_map["fthg"] = "gol_casa"
-
-    if "ftag" in df.columns:
-        rename_map["ftag"] = "gol_trasferta"
+    # 🔥 Mappatura ESATTA per il tuo dataset
+    rename_map = {
+        "fthome": "gol_casa",
+        "ftaway": "gol_trasferta"
+    }
 
     df = df.rename(columns=rename_map)
 
-    # Controllo sicurezza
+    # Controllo colonne obbligatorie
     required_cols = ["casa", "trasferta", "gol_casa", "gol_trasferta"]
 
     for col in required_cols:
@@ -202,6 +192,7 @@ if st.button("Analizza"):
 
         st.subheader("📈 TUTTE le statistiche del CSV")
         st.dataframe(risultato["stats_complete"], use_container_width=True)
+
 
 
 
