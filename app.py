@@ -87,7 +87,7 @@ Rispondi in modo sintetico, chiaro e leggibile.
 """
     try:
         response = openai.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # <--- usa questo se non hai gpt-4
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5
         )
@@ -273,6 +273,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
