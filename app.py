@@ -13,8 +13,44 @@ def normalize_team_name(name):
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("partite.csv")
+    try:
+        df = pd.read_csv("Partite.csv")
+    except FileNotFoundError:
+        st.error("❌ File Partite.csv non trovato nel repository GitHub")
+        st.stop()
+
     df.columns = df.columns.str.strip().str.lower()
+
+    # 🔍 Mappatura intelligente colonne
+    col_map = {}
+
+    for col in df.columns:
+        if "casa" in col or "home" in col:
+            col_map[col] = "casa"
+        if "trasferta" in col or "away" in col:
+            col_map[col] = "trasferta"
+        if "gol" in col and ("casa" in col or "home" in col):
+            col_map[col] = "gol_casa"
+        if "gol" in col and ("trasferta" in col or "away" in col):
+            col_map[col] = "gol_trasferta"
+        if col == "fthg":
+            col_map[col] = "gol_casa"
+        if col == "ftag":
+            col_map[col] = "gol_trasferta"
+        if col == "hometeam":
+            col_map[col] = "casa"
+        if col == "awayteam":
+            col_map[col] = "trasferta"
+
+    df = df.rename(columns=col_map)
+
+    # Controllo sicurezza
+    required_cols = ["casa", "trasferta", "gol_casa", "gol_trasferta"]
+    for col in required_cols:
+        if col not in df.columns:
+            st.error(f"❌ Colonna obbligatoria mancante nel CSV: {col}")
+            st.write("Colonne trovate nel file:", df.columns.tolist())
+            st.stop()
 
     df['casa_norm'] = df['casa'].apply(normalize_team_name)
     df['trasferta_norm'] = df['trasferta'].apply(normalize_team_name)
@@ -170,4 +206,5 @@ if st.button("Analizza"):
 
         st.subheader("📈 TUTTE le statistiche del CSV")
         st.dataframe(risultato["stats_complete"], use_container_width=True)
+
 
