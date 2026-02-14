@@ -119,12 +119,41 @@ def calcola_statistiche(df_all, squadra1, squadra2):
         goal_finale = "NOGOAL"
 
     # ==============================
-    # STATISTICHE COMPLETE (tutte le colonne numeriche)
+    # STATISTICHE COMPLETE TRADOTTE
     # ==============================
     numeric_cols = df_all.select_dtypes(include=['number']).columns.tolist()
     stats_complete = []
     df_s1_all = df_all[(df_all['casa_norm']==squadra1_norm) | (df_all['trasferta_norm']==squadra1_norm)]
     df_s2_all = df_all[(df_all['casa_norm']==squadra2_norm) | (df_all['trasferta_norm']==squadra2_norm)]
+
+    # Dizionario di traduzione colonne
+    stat_translate = {
+        "gol_casa": "Gol medi Casa",
+        "gol_trasferta": "Gol medi Trasferta",
+        "homeshots": "Tiri medi Casa",
+        "awayshots": "Tiri medi Trasferta",
+        "hometarget": "Tiri in porta medi Casa",
+        "awaytarget": "Tiri in porta medi Trasferta",
+        "homecorners": "Corners medi Casa",
+        "awaycorners": "Corners medi Trasferta",
+        "homefouls": "Falli medi Casa",
+        "awayfouls": "Falli medi Trasferta",
+        "homeyellow": "Cartellini gialli medi Casa",
+        "awayyellow": "Cartellini gialli medi Trasferta",
+        "homered": "Cartellini rossi medi Casa",
+        "awayred": "Cartellini rossi medi Trasferta",
+        "homeelo": "Elo Casa",
+        "awayelo": "Elo Trasferta",
+        "form3home": "Punti ultime 3 partite Casa",
+        "form3away": "Punti ultime 3 partite Trasferta",
+        "form5home": "Punti ultime 5 partite Casa",
+        "form5away": "Punti ultime 5 partite Trasferta",
+        "oddhome": "Quota vittoria Casa",
+        "odddraw": "Quota pareggio",
+        "oddaway": "Quota vittoria Trasferta",
+        "over25": "Probabilità Over 2.5",
+        "under25": "Probabilità Under 2.5",
+    }
 
     for col in numeric_cols:
         try:
@@ -134,7 +163,7 @@ def calcola_statistiche(df_all, squadra1, squadra2):
             superiore = squadra1 if media_s1 > media_s2 else squadra2
 
             stats_complete.append({
-                "Statistica": col,
+                "Statistica": stat_translate.get(col, col),
                 squadra1: round(media_s1,2),
                 squadra2: round(media_s2,2),
                 "Scontri Diretti": round(media_scontri,2),
@@ -142,8 +171,6 @@ def calcola_statistiche(df_all, squadra1, squadra2):
             })
         except:
             continue
-
-    stats_df = pd.DataFrame(stats_complete)
 
     return {
         "tot_partite": tot_partite,
@@ -163,7 +190,7 @@ def calcola_statistiche(df_all, squadra1, squadra2):
         "doppia_finale": doppia_finale,
         "over_finale": over_finale,
         "goal_finale": goal_finale,
-        "stats_complete": stats_df
+        "stats_complete": stats_complete
     }
 
 # ==============================
@@ -200,8 +227,5 @@ if st.button("Analizza"):
         st.write(f"Goal/NoGoal: {risultato['goal_finale']}")
 
         st.subheader("📈 Statistiche Dettagliate")
-        # Ciclo tutte le statistiche numeriche calcolate
-        for stat in risultato["stats_complete"].to_dict(orient="records"):
-            st.write(f"**{stat['Statistica']}** - {squadra_casa}: {stat[squadra_casa]}, {squadra_trasferta}: {stat[squadra_trasferta]}, Scontri diretti: {stat['Scontri Diretti']}, Superiore: {stat['Superiore']}")
-
-
+        for stat in risultato["stats_complete"]:
+            st.write(f"**{stat['Statistica']}** → {squadra_casa}: {stat[squadra_casa]}, {squadra_trasferta}: {stat[squadra_trasferta]}, Scontri diretti: {stat['Scontri Diretti']}, Superiore: {stat['Superiore']}")
