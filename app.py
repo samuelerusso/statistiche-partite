@@ -14,7 +14,7 @@ def normalize_team_name(name):
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv("Partite.csv")
+        df = pd.read_csv("partite.csv")
     except FileNotFoundError:
         st.error("❌ File Partite.csv non trovato nel repository GitHub")
         st.stop()
@@ -202,6 +202,7 @@ if st.button("Analizza"):
 
         st.subheader("📈 TUTTE le statistiche del CSV")
         st.dataframe(risultato["stats_complete"], use_container_width=True)
+
 
 
 
