@@ -4,9 +4,7 @@ import unicodedata
 import os
 import google.generativeai as genai  # <-- Gemini
 
-# Leggi la chiave API Gemini da variabile d'ambiente
-GEN_API_KEY = os.getenv("GEN_API_KEY")
-genai.configure(api_key=GEN_API_KEY)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 NUM_RECENT_FORM = 5
 
@@ -88,12 +86,9 @@ Dammi un pronostico chiaro:
 Rispondi in modo sintetico, chiaro e leggibile.
 """
     try:
-        response = genai.generate_text(
-            model="text-bison-001",
-            prompt=prompt,
-            temperature=0.5
-        )
-        return response.text.strip()
+        modello = genai.TextGenerationModel.from_pretrained("text-bison-001")
+        risposta = modello.predict(prompt, temperature=0.5, max_output_tokens=300)
+        return risposta.text
     except Exception as e:
         return f"Errore generando pronostico IA: {e}"
 
@@ -281,6 +276,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
