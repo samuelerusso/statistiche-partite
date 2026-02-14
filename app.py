@@ -86,13 +86,14 @@ Dammi un pronostico chiaro:
 
 Rispondi in modo sintetico, chiaro e leggibile.
 """
-
     try:
-        response = client.generate_text(
+        request = GenerateTextRequest(
             model="gemini-2.5-flash",
+            prompt=prompt,
             temperature=0.5,
-            prompt=prompt
+            max_output_tokens=500
         )
+        response = client.generate_text(request=request)
         return response.text
     except Exception as e:
         return f"Errore generando pronostico IA: {e}"
@@ -281,6 +282,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
