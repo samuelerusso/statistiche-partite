@@ -13,7 +13,7 @@ def normalize_team_name(name):
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("Partite.csv")
+    df = pd.read_csv("partite.csv")
     df.columns = df.columns.str.strip().str.lower()
 
     df['casa_norm'] = df['casa'].apply(normalize_team_name)
@@ -170,3 +170,4 @@ if st.button("Analizza"):
 
         st.subheader("📈 TUTTE le statistiche del CSV")
         st.dataframe(risultato["stats_complete"], use_container_width=True)
+
