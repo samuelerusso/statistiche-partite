@@ -188,6 +188,10 @@ if st.button("Analizza"):
         st.write(f"Vittorie {squadra_casa}: {risultato['vittorie1']}")
         st.write(f"Vittorie {squadra_trasferta}: {risultato['vittorie2']}")
         st.write(f"Pareggi: {risultato['pareggi']}")
+        st.write(f"Gol medi fatti/subiti {squadra_casa}: {risultato['gol1_fatti']:.2f}/{risultato['gol1_subiti']:.2f}")
+        st.write(f"Gol medi fatti/subiti {squadra_trasferta}: {risultato['gol2_fatti']:.2f}/{risultato['gol2_subiti']:.2f}")
+        st.write(f"Forma ultime {NUM_RECENT_FORM} partite: {squadra_casa}={risultato['forma1']} pts | {squadra_trasferta}={risultato['forma2']} pts")
+        st.write(f"Percentuale vittorie {squadra_casa}: {risultato['perc1']:.1f}% | Pareggi: {risultato['percX']:.1f}% | Vittorie {squadra_trasferta}: {risultato['perc2']:.1f}%")
 
         st.subheader("🎯 Pronostico Finale")
         st.write(f"Risultato consigliato: {risultato['risultato_finale']}")
@@ -195,5 +199,9 @@ if st.button("Analizza"):
         st.write(f"Over consigliato: {risultato['over_finale']}")
         st.write(f"Goal/NoGoal: {risultato['goal_finale']}")
 
-        st.subheader("📈 TUTTE le statistiche del CSV")
-        st.dataframe(risultato["stats_complete"], use_container_width=True)
+        st.subheader("📈 Statistiche Dettagliate")
+        # Ciclo tutte le statistiche numeriche calcolate
+        for stat in risultato["stats_complete"].to_dict(orient="records"):
+            st.write(f"**{stat['Statistica']}** - {squadra_casa}: {stat[squadra_casa]}, {squadra_trasferta}: {stat[squadra_trasferta]}, Scontri diretti: {stat['Scontri Diretti']}, Superiore: {stat['Superiore']}")
+
+
