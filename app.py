@@ -2,9 +2,11 @@ import streamlit as st
 import pandas as pd
 import unicodedata
 import os
-import openai
+import google.generativeai as genai  # <-- Gemini
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Leggi la chiave API Gemini da variabile d'ambiente
+GEN_API_KEY = os.getenv("GEN_API_KEY")
+genai.configure(api_key=GEN_API_KEY)
 
 NUM_RECENT_FORM = 5
 
@@ -69,7 +71,7 @@ def stats_to_text(risultato, squadra1, squadra2):
     return testo
 
 # ==============================
-# FUNZIONE PER GENERARE PRONOSTICO IA
+# FUNZIONE PER GENERARE PRONOSTICO IA CON GEMINI
 # ==============================
 def genera_pronostico_ia(testo_statistiche, squadra1, squadra2):
     prompt = f"""
@@ -86,16 +88,22 @@ Dammi un pronostico chiaro:
 Rispondi in modo sintetico, chiaro e leggibile.
 """
     try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",  # <--- usa questo se non hai gpt-4
-            messages=[{"role": "user", "content": prompt}],
+        response = genai.generate_text(
+            model="text-bison-001",
+            prompt=prompt,
             temperature=0.5
         )
-        # con la nuova API il testo si trova qui
-        testo_risposta = response.choices[0].message["content"].strip()
-        return testo_risposta
+        return response.text.strip()
     except Exception as e:
         return f"Errore generando pronostico IA: {e}"
+
+# ==============================
+# IL RESTO DEL CODICE RESTA INVARIATO
+# ==============================
+
+# ... qui va tutta la parte di calcolo statistiche e Streamlit UI esattamente come nel tuo codice
+# puoi sostituire solo la chiamata a OpenAI con `genera_pronostico_ia` aggiornata
+
 
 # ==============================
 # CALCOLO STATISTICHE E PRONOSTICI
@@ -273,6 +281,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
