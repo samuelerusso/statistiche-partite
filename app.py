@@ -4,16 +4,7 @@ import unicodedata
 import os
 import openai
 
-# ==============================
-# CHIAVE OPENAI NASCOSTA
-# ==============================
-# La chiave viene letta dalle variabili d'ambiente
-# Non scrivere mai la chiave direttamente nel file
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
-if openai.api_key is None:
-    st.error("❌ Variabile d'ambiente OPENAI_API_KEY non trovata. Impostala prima di eseguire l'app.")
-    st.stop()
 
 NUM_RECENT_FORM = 5
 
@@ -281,4 +272,5 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
