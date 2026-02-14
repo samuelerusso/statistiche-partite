@@ -4,6 +4,7 @@ import unicodedata
 import os
 from google.ai import generativelanguage as genai
 
+api_key = os.getenv("AIzaSyDsRwKLgWSZDF2J_l94fx1rpG5U3UVA95Y")
 client = genai.TextServiceClient()
 
 NUM_RECENT_FORM = 5
@@ -280,6 +281,7 @@ if st.button("Analizza"):
         testo_statistiche = stats_to_text(risultato, squadra_casa, squadra_trasferta)
         pronostico_ia = genera_pronostico_ia(testo_statistiche, squadra_casa, squadra_trasferta)
         st.write(pronostico_ia)
+
 
 
 
