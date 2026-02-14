@@ -5,7 +5,7 @@ import streamlit as st
 # ==============================
 # CONFIGURAZIONE
 # ==============================
-CSV_FILE = "Partite.csv"
+CSV_FILE = "partite.csv"
 NUM_RECENT_FORM = 5
 YEARS_BACK = 10
 
@@ -162,3 +162,4 @@ if st.button("Calcola pronostico"):
         st.write(f"Doppia chance: {risultato['doppia_finale']}")
         st.write(f"Over/Under: {risultato['over_finale']}")
         st.write(f"Goal/NoGoal: {risultato['goal_finale']}")
+
